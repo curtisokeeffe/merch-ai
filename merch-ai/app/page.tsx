@@ -98,7 +98,7 @@ function useActivityLog(cards: ActionCard[] | null, agent: string | null) {
     if (!cards || !agent) { setLines([]); return }
 
     const relevant = cards.filter((c) => c.agentSource === agent)
-    const allSkus = relevant.flatMap((c) => c.affectedSkus)
+    const allSkus = relevant.flatMap((c) => c.affectedSkus ?? [])
     const now = new Date()
     const ts = () => now.toTimeString().slice(0, 8)
 
@@ -380,7 +380,7 @@ export default function Home() {
           <div style={{ ...MONO, fontSize: 10, color: '#444', letterSpacing: '1px', marginBottom: 6 }}>
             {activeAgent.toUpperCase()} · ACTIVITY LOG
           </div>
-          {activityLines.map((line, i) => (
+          {activityLines.filter((line): line is string => typeof line === 'string').map((line, i) => (
             <div key={i} style={{ ...MONO, fontSize: 11, color: line.includes('✓') ? '#22C55E' : line.includes('↳') ? '#F59E0B' : '#666', marginBottom: 2 }}>
               {line}
             </div>
