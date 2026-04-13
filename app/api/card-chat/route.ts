@@ -22,7 +22,7 @@ ${agentConfig ? `\nYour current configuration: ${agentConfig}` : ''}
 Answer the merchant's questions about why you flagged this, what the data shows, and what they should consider. Be specific and concise — 2-4 sentences max per reply.`
 
     const stream = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 400,
       stream: true,
       system,
@@ -32,12 +32,18 @@ Answer the merchant's questions about why you flagged this, what the data shows,
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const event of stream) {
-          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-            controller.enqueue(encoder.encode(event.delta.text))
+        try {
+          for await (const event of stream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              controller.enqueue(encoder.encode(event.delta.text))
+            }
           }
+        } catch (err) {
+          console.error('[card-chat] stream error:', err)
+          controller.enqueue(encoder.encode('\n\n[Error: ' + String(err) + ']'))
+        } finally {
+          controller.close()
         }
-        controller.close()
       },
     })
 

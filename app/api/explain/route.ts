@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const system = `You are a senior retail merchandising analyst. Given the following data and finding, explain in 3-4 sentences why this matters and what action the merchant should take. Be specific with numbers. Use natural merchandising language. No fluff, no hedging.${actionContext ? `\n\n${actionContext}\nAccount for these already-approved actions in your explanation.` : ''}`
 
     const stream = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 300,
       stream: true,
       system,
@@ -33,12 +33,19 @@ export async function POST(req: NextRequest) {
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const event of stream) {
-          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-            controller.enqueue(encoder.encode(event.delta.text))
+        try {
+          for await (const event of stream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              controller.enqueue(encoder.encode(event.delta.text))
+            }
           }
+        } catch (err) {
+          console.error('[explain] stream error:', err)
+          controller.enqueue(encoder.encode('\n\n[Error: ' + String(err) + ']'))
+          controller.enqueue(encoder.encode('\n\n[Claude is currently busy — please try again in a moment.]'))
+        } finally {
+          controller.close()
         }
-        controller.close()
       },
     })
 

@@ -25,7 +25,7 @@ ${currentConfig ? `Your current custom configuration: "${currentConfig}"` : 'You
 The merchant is configuring your behavior. When they give you instructions, acknowledge them clearly, confirm what you will focus on going forward, and ask one clarifying question if needed. Keep responses to 2-3 sentences. Be direct and professional.`
 
     const stream = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 300,
       stream: true,
       system,
@@ -35,12 +35,19 @@ The merchant is configuring your behavior. When they give you instructions, ackn
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const event of stream) {
-          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-            controller.enqueue(encoder.encode(event.delta.text))
+        try {
+          for await (const event of stream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              controller.enqueue(encoder.encode(event.delta.text))
+            }
           }
+        } catch (err) {
+          console.error('[agent-config] stream error:', err)
+          controller.enqueue(encoder.encode('\n\n[Error: ' + String(err) + ']'))
+          controller.enqueue(encoder.encode('\n\n[Claude is currently busy — please try again in a moment.]'))
+        } finally {
+          controller.close()
         }
-        controller.close()
       },
     })
 

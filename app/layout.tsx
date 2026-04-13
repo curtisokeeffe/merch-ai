@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import Nav from './components/Nav'
 
 export const metadata: Metadata = {
-  title: 'MerchAI — Signal Brief',
-  description: 'Retail Merchandising Intelligence Platform',
+  title: 'MerchAI',
+  description: 'AI-powered retail merchandising intelligence platform',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -17,7 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body style={{ fontFamily: "'DM Sans', sans-serif" }}>{children}</body>
+      <body>
+        <Nav />
+        {children}
+      </body>
     </html>
   )
 }

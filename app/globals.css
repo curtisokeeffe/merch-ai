@@ -12,7 +12,21 @@ html, body {
   height: 100%;
   background: #F8FAFC;
   color: #1E293B;
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Dashboard uses fixed-height layout */
+.dashboard-shell {
+  height: calc(100vh - 56px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+
+/* All other pages scroll normally */
+.page-shell {
+  min-height: calc(100vh - 56px);
+  padding-top: 56px;
 }
 
 input:focus {
@@ -25,10 +39,9 @@ button:focus {
   outline: none;
 }
 
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
+a { text-decoration: none; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: #F1F5F9; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
