@@ -138,7 +138,7 @@ export default function Nav() {
                     {section.title}
                   </div>
                   {section.items.map((item) => {
-                    if (item.disabled) {
+                    if ('disabled' in item && item.disabled) {
                       return (
                         <div key={item.label} style={{ padding: '8px 16px', opacity: 0.4, cursor: 'not-allowed' }}>
                           <div style={{ fontSize: 13, color: '#1E293B', fontWeight: 500 }}>{item.label}</div>
@@ -146,7 +146,7 @@ export default function Nav() {
                         </div>
                       )
                     }
-                    if (item.action === 'reset') {
+                    if ('action' in item && item.action === 'reset') {
                       return (
                         <button
                           key={item.label}
