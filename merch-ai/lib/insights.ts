@@ -20,6 +20,12 @@ export interface ActionCard {
   mutations: Mutation[]
   affectedSkus: string[]
   agentSource: string
+  // Extended fields set by the stateful agent runner (optional for backward compat)
+  reason?: string
+  candidates?: import('./agents/types').CandidateAction[]
+  escalationLevel?: number
+  confidence?: 'high' | 'medium' | 'low'
+  metrics?: Record<string, number | string>
 }
 
 export interface InsightsResult {

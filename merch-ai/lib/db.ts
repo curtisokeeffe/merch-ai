@@ -25,6 +25,21 @@ export interface ProductRow {
   inventory_value: number
 }
 
+export interface ConnectionRow {
+  id: string
+  platform: string
+  display_name: string
+  auth_type: string
+  credentials: string
+  status: string
+  connected_account: string | null
+  read_permissions: string
+  write_permissions: string
+  guardrails: string
+  created_at: string
+  last_synced_at: string | null
+}
+
 export interface ActionLogRow {
   action_id: string
   agent_source: string
@@ -125,10 +140,78 @@ function initSchema(db: Database.Database): void {
       affected_skus TEXT NOT NULL DEFAULT '[]',
       mutations TEXT NOT NULL DEFAULT '[]',
       changes_made TEXT NOT NULL DEFAULT '[]',
+      before_snapshot TEXT NOT NULL DEFAULT '[]',
       approved_at TEXT,
       status TEXT NOT NULL DEFAULT 'pending'
     );
+
+    CREATE TABLE IF NOT EXISTS agent_state (
+      agent_name        TEXT NOT NULL,
+      sku_id            TEXT NOT NULL,
+      last_action_type  TEXT NOT NULL DEFAULT '',
+      last_action_value REAL NOT NULL DEFAULT 0,
+      last_run_at       TEXT NOT NULL,
+      run_count         INTEGER NOT NULL DEFAULT 0,
+      escalation_level  INTEGER NOT NULL DEFAULT 0,
+      outcome_score     REAL NOT NULL DEFAULT 0,
+      outcome_checked_at TEXT,
+      last_action_id    TEXT,
+      PRIMARY KEY (agent_name, sku_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS product_snapshots (
+      snapshot_at       TEXT NOT NULL,
+      sku_id            TEXT NOT NULL,
+      sell_through_rate REAL NOT NULL,
+      current_stock     INTEGER NOT NULL,
+      weeks_of_supply   REAL NOT NULL,
+      retail_price      REAL NOT NULL,
+      inventory_value   REAL NOT NULL,
+      status            TEXT NOT NULL,
+      PRIMARY KEY (snapshot_at, sku_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_snapshots_sku
+      ON product_snapshots (sku_id, snapshot_at DESC);
+
+    CREATE TABLE IF NOT EXISTS ai_response_cache (
+      cache_key    TEXT PRIMARY KEY,
+      response_json TEXT NOT NULL,
+      created_at   TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS connections (
+      id                TEXT PRIMARY KEY,
+      platform          TEXT NOT NULL UNIQUE,
+      display_name      TEXT NOT NULL,
+      auth_type         TEXT NOT NULL,
+      credentials       TEXT NOT NULL DEFAULT '{}',
+      status            TEXT NOT NULL DEFAULT 'not_connected',
+      connected_account TEXT,
+      read_permissions  TEXT NOT NULL DEFAULT '[]',
+      write_permissions TEXT NOT NULL DEFAULT '[]',
+      guardrails        TEXT NOT NULL DEFAULT '{}',
+      created_at        TEXT NOT NULL,
+      last_synced_at    TEXT
+    );
   `)
+
+  // Migrations for existing DBs
+  try {
+    db.exec(`ALTER TABLE action_log ADD COLUMN before_snapshot TEXT NOT NULL DEFAULT '[]'`)
+  } catch { /* column already exists */ }
+
+  // agent_state new columns (added in v2)
+  const agentStateMigrations = [
+    `ALTER TABLE agent_state ADD COLUMN outcome_score REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE agent_state ADD COLUMN outcome_checked_at TEXT`,
+    `ALTER TABLE agent_state ADD COLUMN last_action_id TEXT`,
+    // v3: suppress_until prevents re-flagging during stabilisation windows
+    `ALTER TABLE agent_state ADD COLUMN suppress_until TEXT`,
+  ]
+  for (const sql of agentStateMigrations) {
+    try { db.exec(sql) } catch { /* column already exists */ }
+  }
 }
 
 function seedFromCsv(db: Database.Database): void {
@@ -237,6 +320,12 @@ export function copyBaseToLive(db: Database.Database): void {
 }
 
 export function resetDemo(db: Database.Database): void {
-  copyBaseToLive(db)
-  db.exec('DELETE FROM action_log')
+  db.transaction(() => {
+    db.prepare('DELETE FROM live_products').run()
+    db.prepare('INSERT INTO live_products SELECT * FROM base_products').run()
+    db.prepare('DELETE FROM action_log').run()
+    db.prepare('DELETE FROM agent_state').run()
+    db.prepare('DELETE FROM product_snapshots').run()
+    db.prepare('DELETE FROM ai_response_cache').run()
+  })()
 }

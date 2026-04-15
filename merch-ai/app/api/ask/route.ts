@@ -9,7 +9,10 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(req: NextRequest) {
   try {
-    const { question } = await req.json()
+    const body = await req.json()
+    // Support multi-turn { messages } or legacy single-turn { question }
+    const messages: { role: 'user' | 'assistant'; content: string }[] =
+      body.messages ?? [{ role: 'user', content: body.question as string }]
 
     const db = getDb()
     const products = db.prepare('SELECT * FROM live_products').all() as ProductRow[]
@@ -28,30 +31,32 @@ export async function POST(req: NextRequest) {
       ? `\nAPPROVED ACTIONS TAKEN:\n${logs.map((l) => `- ${l.agent_source}: ${l.title}`).join('\n')}`
       : ''
 
-    const system = `You are a retail analytics assistant with direct access to the merchant's live product database. Answer concisely using specific numbers from the data. Respond in 2-5 sentences. Reference SKU IDs when relevant.`
+    const system = `You are a retail analytics assistant with direct access to the merchant's live product database. Answer concisely using specific numbers from the data. Respond in 2-5 sentences. Reference SKU IDs when relevant.\n\nLIVE PRODUCT DATA:\n${productSummary}${actionSummary}`
 
     const stream = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 400,
       stream: true,
       system,
-      messages: [
-        {
-          role: 'user',
-          content: `LIVE PRODUCT DATA:\n${productSummary}${actionSummary}\n\nQuestion: ${question}`,
-        },
-      ],
+      messages,
     })
 
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const event of stream) {
-          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-            controller.enqueue(encoder.encode(event.delta.text))
+        try {
+          for await (const event of stream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              controller.enqueue(encoder.encode(event.delta.text))
+            }
           }
+        } catch (err) {
+          console.error('[ask] stream error:', err)
+          controller.enqueue(encoder.encode('\n\n[Error: ' + String(err) + ']'))
+          controller.enqueue(encoder.encode('\n\n[Claude is currently busy — please try again in a moment.]'))
+        } finally {
+          controller.close()
         }
-        controller.close()
       },
     })
 
